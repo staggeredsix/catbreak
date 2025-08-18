@@ -7,8 +7,10 @@ from scraper import get_few_good_articles
 
 app = FastAPI(title="Feel‑Good News Backend")
 
+# catbreak/backend/app.py
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-MODEL = "llama3.1:8b-instruct"
+# Updated to use the quantized 8‑bit version of the model for lower memory usage
+MODEL = "llama3.1:8b-instruct-q8_0"
 
 async def summarize_with_ollama(text: str) -> str:
     """

@@ -4,4 +4,5 @@ httpx
 beautifulsoup4
 newspaper3k
 pydantic
-sqlite3  # built‑in, just for clarity
+# sqlite3 is part of the Python standard library and does not need to be installed via pip.
+
