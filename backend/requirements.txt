@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+httpx
+beautifulsoup4
+newspaper3k
+pydantic
+sqlite3  # built‑in, just for clarity

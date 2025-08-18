@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Feel‑Good News Puppy",
+  "version": "1.0.0",
+  "description": "Shows 5 feel‑good news articles with a fuzzy‑puppy rating.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*/"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/puppy-5.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "48": "icons/puppy-5.png",
+    "128": "icons/puppy-10.png"
+  }
+}

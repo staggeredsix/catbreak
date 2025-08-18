@@ -1,0 +1,9 @@
+body { font-family: Arial, sans-serif; width: 300px; margin:0; padding:10px; }
+h1 { font-size: 1.2em; margin-bottom: 5px; }
+#config { margin-bottom: 10px; }
+#ipInput { width: 180px; }
+.article { border-bottom: 1px solid #ddd; padding:5px 0; }
+.title { font-weight: bold; }
+.summary { font-size: 0.9em; margin:4px 0; }
+.rating { margin-top:4px; }
+.rating img { width:16px; height:16px; vertical-align:middle; }
