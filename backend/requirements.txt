@@ -4,5 +4,8 @@ httpx
 beautifulsoup4
 newspaper3k
 pydantic
+# lxml is a dependency of newspaper3k; we need the html_clean extra for recent versions
+lxml[html_clean]
+lxml_html_clean
 # sqlite3 is part of the Python standard library and does not need to be installed via pip.
 
