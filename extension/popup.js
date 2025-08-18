@@ -11,6 +11,13 @@ async function init() {
     loadNews(); // immediate refresh
   });
 
+  // New button: manually trigger an immediate fetch regardless of cached data
+  document.getElementById('refreshBtn').addEventListener('click', async () => {
+    // Clear cached news so loadNews will perform a fresh request
+    await chrome.storage.local.remove('latestNews');
+  loadNews();
+  });
+
   loadNews();
 }
 
