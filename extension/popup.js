@@ -18,6 +18,18 @@ async function init() {
   loadNews();
   });
 
+  // Open the optional self‑hosted site in a new tab
+  document.getElementById('openSiteBtn').addEventListener('click', async () => {
+    const { siteUrl } = await chrome.storage.sync.get('siteUrl');
+    if (siteUrl) {
+      // Use chrome.tabs.create to open a new tab (requires "tabs" permission)
+      chrome.tabs.create({ url: siteUrl });
+    } else {
+  const container = document.getElementById('newsContainer');
+      container.textContent = 'No site URL configured – set it in the extension options.';
+    }
+  });
+
   loadNews();
 }
 
@@ -46,10 +58,26 @@ async function loadNews() {
   render(latestNews);
 }
 
-/** Render either the full API response object or a plain articles array */
+/** Render the news payload.
+ *  The payload can be:
+ *   • the raw FastAPI response object: { articles: [...] }
+ *   • a plain array of article objects (some callers may return that directly)
+ *   • anything else (null, string, etc.) – in which case we show a friendly message.
+ */
 function render(response) {
   const container = document.getElementById('newsContainer');
-  const articles = Array.isArray(response) ? response : response.articles || [];
+  // Normalise to an array of article objects
+  let articles = [];
+  if (Array.isArray(response)) {
+    articles = response;
+  } else if (response && Array.isArray(response.articles)) {
+    articles = response.articles;
+  }
+
+  if (!articles.length) {
+    container.textContent = 'No articles available.';
+    return;
+  }
   articles.forEach(a => {
     const div = document.createElement('div');
     div.className = 'article';

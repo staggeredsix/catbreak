@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Feel‑Good News – Settings</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 15px; }
+    label { display: block; margin-top: 12px; }
+    input[type=text] { width: 250px; padding: 4px; }
+    button { margin-top: 12px; padding: 6px 12px; }
+  </style>
+</head>
+<body>
+  <h2>Extension Settings</h2>
+  <label>
+    Backend IP address (e.g., 192.168.1.42)
+    <input type="text" id="backendIp" placeholder="Backend IP" />
+  </label>
+  <label>
+    Self‑hosted site URL (optional)
+    <input type="text" id="siteUrl" placeholder="https://my‑site.example.com" />
+  </label>
+  <button id="saveBtn">Save Settings</button>
+  <p id="status" style="color: green; margin-top: 8px;"></p>
+
+  <script src="options.js"></script>
+</body>
+</html>
