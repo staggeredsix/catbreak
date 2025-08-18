@@ -2,10 +2,25 @@ import asyncio
 import os
 import httpx
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from models import NewsResponse, Article
 from scraper import get_few_good_articles
 
 app = FastAPI(title="Feel‑Good News Backend")
+
+# ---------------------------------------------------------------
+# CORS configuration
+# Chrome extensions make cross‑origin requests from the extension's own origin
+# (chrome-extension://<id>). To keep things simple and avoid CORS errors during
+# development, we allow requests from any origin. In a production environment
+# you would want to restrict this to the specific extension ID.
+# ---------------------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # catbreak/backend/app.py
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")

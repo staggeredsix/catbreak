@@ -19,9 +19,9 @@ async function loadNews() {
   const container = document.getElementById('newsContainer');
   container.innerHTML = '';
 
+  // If we don't have cached news, fetch it now.
   if (!latestNews) {
     container.textContent = 'Fetching…';
-    // Force an immediate fetch (use same logic as background)
     const { backendIP } = await chrome.storage.sync.get('backendIP');
     if (!backendIP) return;
     try {
@@ -35,11 +35,14 @@ async function loadNews() {
     return;
   }
 
+  // Cached data is stored as the whole API response (object with an "articles" array).
   render(latestNews);
 }
 
-function render(articles) {
+/** Render either the full API response object or a plain articles array */
+function render(response) {
   const container = document.getElementById('newsContainer');
+  const articles = Array.isArray(response) ? response : response.articles || [];
   articles.forEach(a => {
     const div = document.createElement('div');
     div.className = 'article';
