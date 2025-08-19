@@ -21,7 +21,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 # 4. Pull Llama 3.1 8b‑instruct model
 echo "[*] Pulling Llama 3.1 8b instructional model …"
-ollama pull llama3.1:8b-instruct
+ollama pull llama3.1:8b-instruct-q8_0
 
 # 5. Set up Python virtual environment
 cd "$(dirname "$0")"

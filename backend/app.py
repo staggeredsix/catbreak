@@ -8,6 +8,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from models import NewsResponse, Article, DescriptionResponse
 from scraper import get_few_good_articles, fetch_article
+import nltk
+
+nltk.download("punkt_tab")
 
 # CORS configuration
 app = FastAPI(title="Feel‑Good News Backend")
