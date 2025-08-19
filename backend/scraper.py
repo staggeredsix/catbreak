@@ -50,29 +50,18 @@ def mark_watched(url: str):
 # --------------------------------------------------------------------
 _tavily_client = TavilyClient("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")
 
-def tavily_search(query: str, max_results: int = 20) -> List[str]:
-    """Search using the ``tavily-python`` client.
-
-    The client handles authentication and request formatting internally. It
-    returns a dictionary with a ``results`` key that holds a list of result dicts,
-    each containing a ``url`` field.
-    """
-    logger.info(
-        "Performing Tavily client search for query: %s (max %d results)", query, max_results
-    )
-    try:
-        response = _tavily_client.search(
-            query=query,
-            max_results=max_results,
-            # ``search_depth`` defaults to "basic"; we keep the default.
-        )
-        results = response.get("results", [])
-        urls: List[str] = [item.get("url") for item in results if item.get("url")]
-        logger.debug("Tavily client returned %d URLs", len(urls))
-        return urls[:max_results]
-    except Exception as exc:  # pragma: no cover – network failures are rare in tests
-        logger.exception("Tavily client search failed")
-        return []
+--- a/catbreak/backend/scraper.py
++++ b/catbreak/backend/scraper.py
+@@
+-import httpx
++import httpx
+ import json
++import os
+@@
+-_tavily_client = TavilyClient("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")
++_tavily_api_key = os.getenv("TAVILY_API_KEY", "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")
++_tavily_client = TavilyClient(api_key=_tavily_api_key)
++logger.info("Using Tavily client instance: %s", type(_tavily_client).__name__)
 
 def fetch_article(url: str) -> Tuple[str, str]:
     """Download and parse an article via ``newspaper3k``.
