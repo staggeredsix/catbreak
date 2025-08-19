@@ -25,15 +25,27 @@ from newspaper import Article as NewsArticle
 import nltk
 
 # Ensure required NLTK resources are available. Newer versions split the Punkt
-# sentence tokenizer across multiple packages (``punkt`` and ``punkt_tab``), so
-# we download them on demand if they are missing. This prevents runtime
-# ``LookupError`` exceptions when ``newspaper3k`` attempts to summarise
-# articles.
-for _pkg in ("punkt", "punkt_tab"):
-    try:  # pragma: no cover - exercised only when resources are absent
-        nltk.data.find(f"tokenizers/{_pkg}")
-    except LookupError:  # pragma: no cover - network download
-        nltk.download(_pkg, quiet=True)
+
+# sentence tokenizer across multiple packages (``punkt`` and ``punkt_tab``).
+# We download them into a local directory that is added to the NLTK search
+# path so that the resources are found regardless of the executing user's home
+# directory. This prevents runtime ``LookupError`` exceptions when
+# ``newspaper3k`` attempts to summarise articles.
+NLTK_DATA_DIR = os.path.join(os.path.dirname(__file__), "nltk_data")
+nltk.data.path.append(NLTK_DATA_DIR)
+
+
+def _ensure_punkt_resources() -> None:
+    os.makedirs(NLTK_DATA_DIR, exist_ok=True)
+    for _pkg in ("punkt", "punkt_tab"):
+        try:  # pragma: no cover - exercised only when resources are absent
+            nltk.data.find(f"tokenizers/{_pkg}")
+        except LookupError:  # pragma: no cover - network download
+            nltk.download(_pkg, quiet=True, download_dir=NLTK_DATA_DIR)
+
+
+_ensure_punkt_resources()
+
 
 
 # ---------------------------------------------------------------------------
