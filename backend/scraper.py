@@ -1,34 +1,66 @@
-import httpx
-from bs4 import BeautifulSoup
-from newspaper import Article as NewsArticle
-import sqlite3
-import random
-import json
+"""Utilities for collecting and rating feel‑good news articles.
+
+The module caches processed URLs in a small SQLite database to avoid
+duplicating work.  Articles are fetched and scored before being returned to
+the caller.
+
+The previous implementation called the Tavily API directly using an HTTP GET
+request which is no longer supported by the service.  Tavily now expects
+requests to be made via their official client which performs a POST request.
+Attempting to hit the old endpoint resulted in ``405 Method Not Allowed``
+responses.  The code below uses the official client and reads the API key from
+``TAVILY_API_KEY`` so that searches work again.
+"""
+
+from __future__ import annotations
+
 import logging
+import os
+import sqlite3
 from typing import List, Tuple
+
+import httpx
+from newspaper import Article as NewsArticle
 from tavily import TavilyClient
 
-DB_PATH = "cache.db"
+# ---------------------------------------------------------------------------
+# Configuration & logging
+# ---------------------------------------------------------------------------
 
-# -----------------------------------------------
-# Logging for the scraper – we reuse the same logger hierarchy as the app.
-# -----------------------------------------------
+DB_PATH = "cache.db"
 logger = logging.getLogger("backend.scraper")
 
-def init_db():
+_tavily_api_key = os.getenv("TAVILY_API_KEY", "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")
+_tavily_client = TavilyClient(api_key=_tavily_api_key)
+logger.info("Using Tavily client instance: %s", type(_tavily_client).__name__)
+
+
+# ---------------------------------------------------------------------------
+# SQLite helpers
+# ---------------------------------------------------------------------------
+
+
+def init_db() -> None:
+    """Initialise the SQLite database used for caching processed URLs."""
+
     logger.info("Initializing SQLite cache database at %s", DB_PATH)
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute(
-        """CREATE TABLE IF NOT EXISTS watched (
-                    url TEXT PRIMARY KEY,
-                    watched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )"""
+        """
+        CREATE TABLE IF NOT EXISTS watched (
+            url TEXT PRIMARY KEY,
+            watched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
     )
     conn.commit()
     conn.close()
 
+
 def is_watched(url: str) -> bool:
+    """Return ``True`` if ``url`` has already been processed."""
+
     logger.debug("Checking if URL has been watched: %s", url)
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -37,7 +69,10 @@ def is_watched(url: str) -> bool:
     conn.close()
     return found
 
-def mark_watched(url: str):
+
+def mark_watched(url: str) -> None:
+    """Persist ``url`` in the cache so we do not process it again."""
+
     logger.info("Marking URL as watched: %s", url)
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -45,28 +80,39 @@ def mark_watched(url: str):
     conn.commit()
     conn.close()
 
-# --------------------------------------------------------------------
-# Tavily search helper – uses the official ``tavily-python`` client library
-# --------------------------------------------------------------------
-_tavily_client = TavilyClient("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")
 
---- a/catbreak/backend/scraper.py
-+++ b/catbreak/backend/scraper.py
-@@
--import httpx
-+import httpx
- import json
-+import os
-@@
--_tavily_client = TavilyClient("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")
-+_tavily_api_key = os.getenv("TAVILY_API_KEY", "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")
-+_tavily_client = TavilyClient(api_key=_tavily_api_key)
-+logger.info("Using Tavily client instance: %s", type(_tavily_client).__name__)
+# ---------------------------------------------------------------------------
+# Tavily search helper
+# ---------------------------------------------------------------------------
+
+
+def tavily_search(query: str, max_results: int = 30) -> List[str]:
+    """Search Tavily for ``query`` and return a list of result URLs."""
+
+    logger.info("Searching Tavily for query: %s", query)
+    try:
+        response = _tavily_client.search(query, max_results=max_results)
+        urls = [r["url"] for r in response.get("results", [])]
+        logger.debug("Tavily returned %d URLs", len(urls))
+        return urls
+    except httpx.HTTPStatusError as exc:  # pragma: no cover - network errors
+        logger.error("Tavily API error: %s", exc)
+    except Exception:  # pragma: no cover - defensive
+        logger.exception("Unexpected error while querying Tavily")
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Article fetching & rating
+# ---------------------------------------------------------------------------
+
 
 def fetch_article(url: str) -> Tuple[str, str]:
-    """Download and parse an article via ``newspaper3k``.
+    """Download and parse an article using ``newspaper3k``.
+
     Returns a tuple ``(title, summary)``.
     """
+
     logger.info("Fetching article from URL: %s", url)
     article = NewsArticle(url)
     article.download()
@@ -75,10 +121,14 @@ def fetch_article(url: str) -> Tuple[str, str]:
     logger.debug("Fetched article – title: %s", article.title[:60])
     return article.title, article.summary
 
+
 def rate_article(content: str) -> int:
     """Very naive "feel‑good" scorer.
-    Positive words add points, negative words subtract. Result is clamped to 1‑10.
+
+    Positive words add points, negative words subtract.
+    Result is clamped to the range 1‑10.
     """
+
     positives = [
         "help",
         "kind",
@@ -91,21 +141,20 @@ def rate_article(content: str) -> int:
         "cure",
         "breakthrough",
     ]
+
     negatives = ["war", "crime", "death", "disaster", "crisis", "fail", "tragedy"]
     content_lc = content.lower()
-    score = sum(word in content_lc for word in positives) - sum(word in content_lc for word in negatives)
+    score = sum(word in content_lc for word in positives) - sum(
+        word in content_lc for word in negatives
+    )
     rating = max(1, min(10, score + 5))
     logger.debug("Rating article – score: %d, final rating: %d", score, rating)
     return rating
 
+
 def get_few_good_articles() -> List[dict]:
-    """Entry point used by the API – returns up to 5 feel‑good articles with rating.
-    The function:
-    1. Ensures the DB exists.
-    2. Searches DuckDuckGo.
-    3. Walks the URLs, skipping any already‑watched.
-    4. Fetches, rates and stores each article.
-    """
+    """Return up to five feel‑good articles with basic metadata."""
+
     logger.info("Fetching a fresh batch of feel‑good articles")
     init_db()
     query = "feel good news positive uplifting recent"
@@ -119,10 +168,12 @@ def get_few_good_articles() -> List[dict]:
         try:
             title, summary = fetch_article(url)
             rating = rate_article(summary)
-            articles.append({"title": title, "summary": summary, "url": url, "rating": rating})
+            articles.append(
+                {"title": title, "summary": summary, "url": url, "rating": rating}
+            )
             mark_watched(url)
             logger.info("Collected article %d – %s", len(articles), title[:60])
-        except Exception as exc:  # pragma: no cover – individual article failures are expected
+        except Exception:  # pragma: no cover – individual failures are expected
             logger.exception("Failed to process URL %s", url)
             continue
         if len(articles) >= 5:
@@ -135,4 +186,15 @@ def get_few_good_articles() -> List[dict]:
         # In a real project you might fallback to cached data here.
 
     return articles
+
+
+__all__ = [
+    "fetch_article",
+    "get_few_good_articles",
+    "init_db",
+    "is_watched",
+    "mark_watched",
+    "rate_article",
+    "tavily_search",
+]
 
