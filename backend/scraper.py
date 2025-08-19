@@ -8,9 +8,11 @@ Earlier versions queried the Tavily API using GET requests or through direct
 ``httpx`` calls which yielded ``405 Method Not Allowed`` responses. Tavily
 requires POST requests with specific headers, so we now invoke the endpoint
 via the system ``curl`` command and send the JSON payload manually.
+
 """
 
 from __future__ import annotations
+
 
 import json
 import logging
@@ -21,6 +23,7 @@ from typing import List, Tuple
 
 from newspaper import Article as NewsArticle
 
+
 # ---------------------------------------------------------------------------
 # Configuration & logging
 # ---------------------------------------------------------------------------
@@ -28,9 +31,11 @@ from newspaper import Article as NewsArticle
 DB_PATH = "cache.db"
 logger = logging.getLogger("backend.scraper")
 
+
 _tavily_api_key = os.getenv(
     "TAVILY_API_KEY", "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"
 )
+
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +128,7 @@ def tavily_search(query: str, max_results: int = 30) -> List[str]:
         logger.error("Tavily curl call failed: %s", exc)
     except json.JSONDecodeError:  # pragma: no cover - bad response
         logger.exception("Failed to decode Tavily response")
+
     except Exception:  # pragma: no cover - defensive
         logger.exception("Unexpected error while querying Tavily")
     return []
