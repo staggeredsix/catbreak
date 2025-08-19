@@ -6,8 +6,8 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from models import NewsResponse, Article
-from scraper import get_few_good_articles
+from models import NewsResponse, Article, DescriptionResponse
+from scraper import get_few_good_articles, fetch_article
 
 # CORS configuration
 app = FastAPI(title="Feel‑Good News Backend")
@@ -51,15 +51,24 @@ async def log_requests(request: Request, call_next):
         logger.exception(f"{request_id} | EXCEPTION | {request.method} {request.url.path}")
         raise exc
 
-async def summarize_with_ollama(text: str) -> str:
+async def summarize_with_ollama(text: str, prompt_suffix: str = "") -> str:
+    """Calls Ollama's `/api/generate` endpoint.
+
+    ``text`` is the content we want the model to work on.
+    ``prompt_suffix`` allows callers to customise the instruction (e.g. ask for a
+    description instead of a short summary).
     """
-    Calls Ollama's `/api/generate` endpoint to ask the LLM for a short 2‑sentence summary.
-    """
+    base_prompt = (
+        "Summarise the following article in 2‑3 sentences, keep it upbeat and feel‑good:\n\n"
+    )
+    prompt = base_prompt + text
+    if prompt_suffix:
+        prompt += "\n\n" + prompt_suffix
     payload = {
         "model": MODEL,
-        "prompt": f"Summarise the following article in 2‑3 sentences, keep it upbeat and feel‑good:\n\n{text}",
+        "prompt": prompt,
         "stream": False,
-        "options": {"temperature": 0.7}
+        "options": {"temperature": 0.7},
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(f"{OLLAMA_HOST}/api/generate", json=payload, timeout=30.0)
@@ -90,6 +99,22 @@ async def get_news():
         )
     return NewsResponse(articles=summarized)
 
+@app.get("/describe", response_model=DescriptionResponse)
+async def describe(url: str):
+    logger.info("Generating description for URL: %s", url)
+    try:
+        title, summary = await asyncio.to_thread(fetch_article, url)
+    except Exception as exc:
+        logger.exception("Failed to fetch article for description")
+        raise HTTPException(status_code=400, detail="Could not fetch article")
+    prompt_suffix = (
+        "Provide a friendly, engaging description of this article that could be "
+        "used as a teaser on a website. Include the main points, keep the tone "
+        "positive, and limit the output to about 150 characters."
+    )
+    description = await summarize_with_ollama(summary, prompt_suffix=prompt_suffix)
+    return DescriptionResponse(url=url, description=description)
+
 @app.get("/health")
 def health():
     logger.info("Health check invoked")
@@ -99,3 +124,4 @@ def health():
 # The static files live in ./static and include an index.html that fetches
 # /news and renders it.
 app.mount("/", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static"), html=True))
+

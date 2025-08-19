@@ -9,9 +9,9 @@ from typing import List, Tuple
 
 DB_PATH = "cache.db"
 
-# ---------------------------------------------
+# -------------------------------------------------------------
 # Logging for the scraper – we reuse the same logger hierarchy as the app.
-# ---------------------------------------------
+# -------------------------------------------------------------
 logger = logging.getLogger("backend.scraper")
 
 def init_db():
@@ -44,28 +44,35 @@ def mark_watched(url: str):
     conn.commit()
     conn.close()
 
-def duckduckgo_search(query: str, max_results: int = 20) -> List[str]:
-    """Lightweight DuckDuckGo HTML search – returns a list of result URLs.
-    ``max_results`` caps the number of URLs returned.
+# -------------------------------------------------------------------------------
+# Search provider – switched from DuckDuckGo to Tavily (paid API)
+# -------------------------------------------------------------------------------
+TAVILY_API_KEY = "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"
+def tavily_search(query: str, max_results: int = 20) -> List[str]:
+    """Search using the Tavily API.
+
+    The API returns a JSON payload with a ``results`` list where each entry
+    contains a ``url`` field. We extract up to ``max_results`` URLs.
     """
-    logger.info("Performing DuckDuckGo search for query: %s (max %d results)", query, max_results)
-    resp = httpx.get(
-        "https://duckduckgo.com/html/",
-        params={"q": query},
-        timeout=15.0,
-        headers={"User-Agent": "Mozilla/5.0"},
+    logger.info(
+        "Performing Tavily search for query: %s (max %d results)", query, max_results
     )
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    links: List[str] = []
-    for a in soup.select("a.result__a"):
-        href = a.get("href")
-        if href:
-            links.append(href)
-        if len(links) >= max_results:
-            break
-    logger.debug("DuckDuckGo returned %d URLs", len(links))
-    return links
+    try:
+        resp = httpx.get(
+            "https://api.tavily.com/search",
+            params={"q": query, "max_results": max_results},
+            headers={"Authorization": f"Bearer {TAVILY_API_KEY}"},
+            timeout=20.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("results", [])
+        urls: List[str] = [item.get("url") for item in results if item.get("url")]
+        logger.debug("Tavily returned %d URLs", len(urls))
+        return urls[:max_results]
+    except Exception as exc:  # pragma: no cover – network failures are rare in tests
+        logger.exception("Tavily search failed")
+        return []
 
 def fetch_article(url: str) -> Tuple[str, str]:
     """Download and parse an article via ``newspaper3k``.
@@ -113,7 +120,7 @@ def get_few_good_articles() -> List[dict]:
     logger.info("Fetching a fresh batch of feel‑good articles")
     init_db()
     query = "feel good news positive uplifting recent"
-    urls = duckduckgo_search(query, max_results=30)
+    urls = tavily_search(query, max_results=30)
 
     articles: List[dict] = []
     for url in urls:
