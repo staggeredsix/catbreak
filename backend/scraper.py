@@ -6,10 +6,11 @@ the caller.
 
 The previous implementation called the Tavily API directly using an HTTP GET
 request which is no longer supported by the service.  Tavily now expects
-requests to be made via their official client which performs a POST request.
+requests to be made with a POST request containing a small JSON payload.
 Attempting to hit the old endpoint resulted in ``405 Method Not Allowed``
-responses.  The code below uses the official client and reads the API key from
-``TAVILY_API_KEY`` so that searches work again.
+responses.  The code below performs the POST request manually via ``httpx`` and
+reads the API key from ``TAVILY_API_KEY`` so that searches work again.
+
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from typing import List, Tuple
 
 import httpx
 from newspaper import Article as NewsArticle
-from tavily import TavilyClient
+
 
 # ---------------------------------------------------------------------------
 # Configuration & logging
@@ -30,9 +31,12 @@ from tavily import TavilyClient
 DB_PATH = "cache.db"
 logger = logging.getLogger("backend.scraper")
 
-_tavily_api_key = os.getenv("TAVILY_API_KEY", "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")
-_tavily_client = TavilyClient(api_key=_tavily_api_key)
-logger.info("Using Tavily client instance: %s", type(_tavily_client).__name__)
+
+_tavily_api_key = os.getenv(
+    "TAVILY_API_KEY", "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"
+)
+_tavily_headers = {"Content-Type": "application/json", "X-API-Key": _tavily_api_key}
+
 
 
 # ---------------------------------------------------------------------------
@@ -89,10 +93,21 @@ def mark_watched(url: str) -> None:
 def tavily_search(query: str, max_results: int = 30) -> List[str]:
     """Search Tavily for ``query`` and return a list of result URLs."""
 
-    logger.info("Searching Tavily for query: %s", query)
+
+    logger.info(
+        "Performing Tavily search for query: %s (max %d results)", query, max_results
+    )
+    payload = {"query": query, "max_results": max_results}
     try:
-        response = _tavily_client.search(query, max_results=max_results)
-        urls = [r["url"] for r in response.get("results", [])]
+        resp = httpx.post(
+            "https://api.tavily.com/search",
+            json=payload,
+            headers=_tavily_headers,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        urls = [r["url"] for r in resp.json().get("results", [])]
+
         logger.debug("Tavily returned %d URLs", len(urls))
         return urls
     except httpx.HTTPStatusError as exc:  # pragma: no cover - network errors
