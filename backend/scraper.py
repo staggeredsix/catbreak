@@ -209,11 +209,11 @@ def rate_article(content: str) -> int:
 
 
 def get_few_good_articles() -> List[dict]:
-    """Return up to five feel‑good articles with basic metadata."""
+    """Return up to five feel‑good news stories or funny animal videos."""
 
     logger.info("Fetching a fresh batch of feel‑good articles")
     init_db()
-    query = "feel good news positive uplifting recent"
+    query = "funny dog videos funny cat videos feel good news stories"
     urls = tavily_search(query, max_results=30)
 
     articles: List[dict] = []
