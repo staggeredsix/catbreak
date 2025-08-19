@@ -9,9 +9,9 @@ from typing import List, Tuple
 
 DB_PATH = "cache.db"
 
-# -------------------------------------------------------------
+# -----------------------------------------------------------
 # Logging for the scraper – we reuse the same logger hierarchy as the app.
-# -------------------------------------------------------------
+# -----------------------------------------------------------
 logger = logging.getLogger("backend.scraper")
 
 def init_db():
@@ -49,19 +49,33 @@ def mark_watched(url: str):
 # -------------------------------------------------------------------------------
 TAVILY_API_KEY = "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"
 def tavily_search(query: str, max_results: int = 20) -> List[str]:
-    """Search using the Tavily API.
+    """Search using the Tavily API via **POST**.
 
-    The API returns a JSON payload with a ``results`` list where each entry
-    contains a ``url`` field. We extract up to ``max_results`` URLs.
+    The official Tavily endpoint expects a JSON body:
+    ```json
+    {
+        "api_key": "YOUR_TAVILY_API_KEY",
+        "query": "…",
+        "search_depth": "basic",
+        "max_results": 10
+    }
+    ```
+    The response contains a ``results`` list where each entry has a ``url``.
     """
     logger.info(
-        "Performing Tavily search for query: %s (max %d results)", query, max_results
+        "Performing Tavily POST search for query: %s (max %d results)", query, max_results
     )
+    payload = {
+        "api_key": TAVILY_API_KEY,
+        "query": query,
+        "search_depth": "basic",
+        "max_results": max_results,
+    }
     try:
-        resp = httpx.get(
+        resp = httpx.post(
             "https://api.tavily.com/search",
-            params={"q": query, "max_results": max_results},
-            headers={"Authorization": f"Bearer {TAVILY_API_KEY}"},
+            json=payload,
+            headers={"Content-Type": "application/json"},
             timeout=20.0,
         )
         resp.raise_for_status()
@@ -71,7 +85,7 @@ def tavily_search(query: str, max_results: int = 20) -> List[str]:
         logger.debug("Tavily returned %d URLs", len(urls))
         return urls[:max_results]
     except Exception as exc:  # pragma: no cover – network failures are rare in tests
-        logger.exception("Tavily search failed")
+        logger.exception("Tavily POST search failed")
         return []
 
 def fetch_article(url: str) -> Tuple[str, str]:
@@ -146,3 +160,4 @@ def get_few_good_articles() -> List[dict]:
         # In a real project you might fallback to cached data here.
 
     return articles
+
