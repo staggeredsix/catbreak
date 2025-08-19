@@ -25,6 +25,7 @@ from newspaper import Article as NewsArticle
 import nltk
 
 # Ensure required NLTK resources are available. Newer versions split the Punkt
+
 # sentence tokenizer across multiple packages (``punkt`` and ``punkt_tab``).
 # We download them into a local directory that is added to the NLTK search
 # path so that the resources are found regardless of the executing user's home
@@ -44,6 +45,7 @@ def _ensure_punkt_resources() -> None:
 
 
 _ensure_punkt_resources()
+
 
 
 # ---------------------------------------------------------------------------
