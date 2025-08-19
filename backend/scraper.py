@@ -22,6 +22,18 @@ import subprocess
 from typing import List, Tuple
 
 from newspaper import Article as NewsArticle
+import nltk
+
+# Ensure required NLTK resources are available. Newer versions split the Punkt
+# sentence tokenizer across multiple packages (``punkt`` and ``punkt_tab``), so
+# we download them on demand if they are missing. This prevents runtime
+# ``LookupError`` exceptions when ``newspaper3k`` attempts to summarise
+# articles.
+for _pkg in ("punkt", "punkt_tab"):
+    try:  # pragma: no cover - exercised only when resources are absent
+        nltk.data.find(f"tokenizers/{_pkg}")
+    except LookupError:  # pragma: no cover - network download
+        nltk.download(_pkg, quiet=True)
 
 
 # ---------------------------------------------------------------------------
