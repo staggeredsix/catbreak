@@ -6,12 +6,13 @@ import random
 import json
 import logging
 from typing import List, Tuple
+from tavily import TavilyClient
 
 DB_PATH = "cache.db"
 
-# -----------------------------------------------------------
+# -----------------------------------------------
 # Logging for the scraper – we reuse the same logger hierarchy as the app.
-# -----------------------------------------------------------
+# -----------------------------------------------
 logger = logging.getLogger("backend.scraper")
 
 def init_db():
@@ -44,48 +45,33 @@ def mark_watched(url: str):
     conn.commit()
     conn.close()
 
-# -------------------------------------------------------------------------------
-# Search provider – switched from DuckDuckGo to Tavily (paid API)
-# -------------------------------------------------------------------------------
-TAVILY_API_KEY = "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"
-def tavily_search(query: str, max_results: int = 20) -> List[str]:
-    """Search using the Tavily API via **POST**.
+# --------------------------------------------------------------------
+# Tavily search helper – uses the official ``tavily-python`` client library
+# --------------------------------------------------------------------
+_tavily_client = TavilyClient("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")
 
-    The official Tavily endpoint expects a JSON body:
-    ```json
-    {
-        "api_key": "YOUR_TAVILY_API_KEY",
-        "query": "…",
-        "search_depth": "basic",
-        "max_results": 10
-    }
-    ```
-    The response contains a ``results`` list where each entry has a ``url``.
+def tavily_search(query: str, max_results: int = 20) -> List[str]:
+    """Search using the ``tavily-python`` client.
+
+    The client handles authentication and request formatting internally. It
+    returns a dictionary with a ``results`` key that holds a list of result dicts,
+    each containing a ``url`` field.
     """
     logger.info(
-        "Performing Tavily POST search for query: %s (max %d results)", query, max_results
+        "Performing Tavily client search for query: %s (max %d results)", query, max_results
     )
-    payload = {
-        "api_key": TAVILY_API_KEY,
-        "query": query,
-        "search_depth": "basic",
-        "max_results": max_results,
-    }
     try:
-        resp = httpx.post(
-            "https://api.tavily.com/search",
-            json=payload,
-            headers={"Content-Type": "application/json"},
-            timeout=20.0,
+        response = _tavily_client.search(
+            query=query,
+            max_results=max_results,
+            # ``search_depth`` defaults to "basic"; we keep the default.
         )
-        resp.raise_for_status()
-        data = resp.json()
-        results = data.get("results", [])
+        results = response.get("results", [])
         urls: List[str] = [item.get("url") for item in results if item.get("url")]
-        logger.debug("Tavily returned %d URLs", len(urls))
+        logger.debug("Tavily client returned %d URLs", len(urls))
         return urls[:max_results]
     except Exception as exc:  # pragma: no cover – network failures are rare in tests
-        logger.exception("Tavily POST search failed")
+        logger.exception("Tavily client search failed")
         return []
 
 def fetch_article(url: str) -> Tuple[str, str]:
