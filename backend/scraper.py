@@ -1,26 +1,26 @@
 """Utilities for collecting and rating feel‑good news articles.
 
 The module caches processed URLs in a small SQLite database to avoid
-duplicating work.  Articles are fetched and scored before being returned to
+duplicating work. Articles are fetched and scored before being returned to
 the caller.
 
-The previous implementation called the Tavily API directly using an HTTP GET
-request which is no longer supported by the service.  Tavily now expects
-requests to be made with a POST request containing a small JSON payload.
-Attempting to hit the old endpoint resulted in ``405 Method Not Allowed``
-responses.  The code below performs the POST request manually via ``httpx`` and
-reads the API key from ``TAVILY_API_KEY`` so that searches work again.
+Earlier versions queried the Tavily API using GET requests or through direct
+``httpx`` calls which yielded ``405 Method Not Allowed`` responses. Tavily
+requires POST requests with specific headers, so we now invoke the endpoint
+via the system ``curl`` command and send the JSON payload manually.
 
 """
 
 from __future__ import annotations
 
+
+import json
 import logging
 import os
 import sqlite3
+import subprocess
 from typing import List, Tuple
 
-import httpx
 from newspaper import Article as NewsArticle
 
 
@@ -35,7 +35,6 @@ logger = logging.getLogger("backend.scraper")
 _tavily_api_key = os.getenv(
     "TAVILY_API_KEY", "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"
 )
-_tavily_headers = {"Content-Type": "application/json", "X-API-Key": _tavily_api_key}
 
 
 
@@ -93,25 +92,43 @@ def mark_watched(url: str) -> None:
 def tavily_search(query: str, max_results: int = 30) -> List[str]:
     """Search Tavily for ``query`` and return a list of result URLs."""
 
-
     logger.info(
         "Performing Tavily search for query: %s (max %d results)", query, max_results
     )
-    payload = {"query": query, "max_results": max_results}
+    payload = {
+        "query": query,
+        "topic": "general",
+        "search_depth": "basic",
+        "max_results": max_results,
+    }
+    cmd = [
+        "curl",
+        "--silent",
+        "--show-error",
+        "--request",
+        "POST",
+        "--url",
+        "https://api.tavily.com/search",
+        "--header",
+        f"Authorization: Bearer {_tavily_api_key}",
+        "--header",
+        "Content-Type: application/json",
+        "--data",
+        json.dumps(payload),
+    ]
     try:
-        resp = httpx.post(
-            "https://api.tavily.com/search",
-            json=payload,
-            headers=_tavily_headers,
-            timeout=30.0,
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30, check=True
         )
-        resp.raise_for_status()
-        urls = [r["url"] for r in resp.json().get("results", [])]
-
+        data = json.loads(result.stdout or "{}")
+        urls = [r["url"] for r in data.get("results", [])]
         logger.debug("Tavily returned %d URLs", len(urls))
         return urls
-    except httpx.HTTPStatusError as exc:  # pragma: no cover - network errors
-        logger.error("Tavily API error: %s", exc)
+    except subprocess.CalledProcessError as exc:  # pragma: no cover - curl errors
+        logger.error("Tavily curl call failed: %s", exc)
+    except json.JSONDecodeError:  # pragma: no cover - bad response
+        logger.exception("Failed to decode Tavily response")
+
     except Exception:  # pragma: no cover - defensive
         logger.exception("Unexpected error while querying Tavily")
     return []
