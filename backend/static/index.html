@@ -9,6 +9,8 @@
     .title a { font-weight: bold; text-decoration: none; color: #333; }
     .summary { margin-top: 4px; }
     .rating { margin-top: 4px; color: #c00; }
+    .description { margin-top: 8px; font-style: italic; color: #555; }
+    .describeBtn { margin-left: 8px; cursor: pointer; font-size: 0.9em; }
   </style>
 </head>
 <body>
@@ -28,6 +30,18 @@
       }
     }
 
+    async function fetchDescription(url) {
+      try {
+        const resp = await fetch(`/describe?url=${encodeURIComponent(url)}`);
+        if (!resp.ok) throw new Error('Network error');
+        const data = await resp.json();
+        return data.description || '';
+      } catch (e) {
+        console.error('Failed to fetch description:', e);
+        return '';
+      }
+    }
+
     function render(response) {
       const container = document.getElementById('newsContainer');
       const articles = Array.isArray(response) ? response : response.articles || [];
@@ -43,7 +57,17 @@
           <div class="title"><a href="${a.url}" target="_blank">${a.title}</a></div>
           <div class="summary">${a.summary}</div>
           <div class="rating">${'🐶'.repeat(a.rating)}</div>
+          <button class="describeBtn">Show description</button>
+          <div class="description" style="display:none;"></div>
         `;
+        const describeBtn = div.querySelector('.describeBtn');
+        const descDiv = div.querySelector('.description');
+        describeBtn.addEventListener('click', async () => {
+          describeBtn.disabled = true;
+          const description = await fetchDescription(a.url);
+          descDiv.textContent = description;
+          descDiv.style.display = 'block';
+        });
         container.appendChild(div);
       });
     }
@@ -52,3 +76,4 @@
   </script>
 </body>
 </html>
+
